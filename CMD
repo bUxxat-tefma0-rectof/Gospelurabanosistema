@@ -1,0 +1,12 @@
+# 1. Cria pasta
+mkdir bot-pix-teste
+
+# 2. Entra na pasta
+cd bot-pix-teste
+
+# 3. Cria os arquivos (pode criar manualmente também)
+echo. > main.py
+echo. > requirements.txt
+
+# 4. Abre a pasta no explorador
+explorer .
