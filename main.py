@@ -7,6 +7,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 from telegram.constants import ParseMode
 from dotenv import load_dotenv
 import os
+import asyncio
 
 load_dotenv()
 
@@ -14,7 +15,7 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 sdk = mercadopago.SDK(os.getenv("MERCADO_PAGO_TOKEN"))
 
-# Armazenamento temporário (em produção use banco de dados)
+# Armazenamento temporário
 pagamentos = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -41,7 +42,6 @@ async def gerar_pix(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = query.from_user
     
     try:
-        # Criar pagamento no Mercado Pago
         resultado = sdk.payment().create({
             "transaction_amount": valor,
             "description": f"Recarga R$ {valor}",
@@ -55,16 +55,12 @@ async def gerar_pix(update: Update, context: ContextTypes.DEFAULT_TYPE):
         qr_base64 = pagamento["point_of_interaction"]["transaction_data"]["qr_code_base64"]
         copia_cola = pagamento["point_of_interaction"]["transaction_data"]["qr_code"]
         
-        # Salvar referência
         pagamentos[mp_id] = {"user_id": user.id, "valor": valor, "status": "pending"}
         
-        # Criar QR Code
         qr_image = base64.b64decode(qr_base64)
         
-        # Botão de verificação
         keyboard = [[InlineKeyboardButton("🔄 Verificar Pagamento", callback_data=f"ver_{mp_id}")]]
         
-        # Enviar QR Code
         await query.message.reply_photo(
             BytesIO(qr_image),
             caption=f"📱 *PIX R$ {valor:.2f}*\n\n"
@@ -111,11 +107,24 @@ async def verificar_pix(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await query.edit_message_text(f"❌ Erro: {e}")
 
-# Iniciar bot
-app = Application.builder().token(BOT_TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CallbackQueryHandler(gerar_pix, pattern="^pix_"))
-app.add_handler(CallbackQueryHandler(verificar_pix, pattern="^ver_"))
+async def main():
+    """Inicia o bot"""
+    app = Application.builder().token(BOT_TOKEN).build()
+    
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(gerar_pix, pattern="^pix_"))
+    app.add_handler(CallbackQueryHandler(verificar_pix, pattern="^ver_"))
+    
+    print("🤖 Bot iniciado!")
+    
+    # Iniciar polling
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    
+    # Manter rodando
+    while True:
+        await asyncio.sleep(1)
 
-print("🤖 Bot iniciado! Pressione Ctrl+C para parar")
-app.run_polling()
+if __name__ == "__main__":
+    asyncio.run(main())
